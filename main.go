@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	FetchKLines("ETHUSDT", KLineInterval1d, 1)
+	FetchKLines("ETHUSDT", KLineInterval1d, 4)
 }
 
 func FetchKLines(pairSymbol string, interval KLineInterval, limit uint, options ...KLineRequestOption) {
@@ -28,5 +28,11 @@ func FetchKLines(pairSymbol string, interval KLineInterval, limit uint, options 
 	}
 	fmt.Println(string(body))
 
-	UnmarshalKLinesJSON(body)
+	kls, err := UnmarshalKLinesJSON(body)
+	if err != nil {
+		panic(err)
+	}
+	for _, kl := range kls {
+		fmt.Println(kl)
+	}
 }

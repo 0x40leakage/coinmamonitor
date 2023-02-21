@@ -11,13 +11,13 @@ import (
 // https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md
 // https://github.com/binance/binance-spot-api-docs/blob/master/rest-api_CN.md
 type KLine struct {
-	OpenTime   uint64 `arrayIndex:"0"`
-	OpenPrice  string `arrayIndex:"1"`
-	HighPrice  string `arrayIndex:"2"`
-	LowPrice   string `arrayIndex:"3"`
-	ClosePrice string `arrayIndex:"4"`
-	Volume     string `arrayIndex:"5"` // 成交量
-	CloseTime  uint64 `arrayIndex:"6"` // 收盘时间
+	OpenTime   uint64  `arrayIndex:"0"`
+	OpenPrice  float64 `arrayIndex:"1"`
+	HighPrice  float64 `arrayIndex:"2"`
+	LowPrice   float64 `arrayIndex:"3"`
+	ClosePrice float64 `arrayIndex:"4"`
+	Volume     float64 `arrayIndex:"5"` // 成交量
+	CloseTime  uint64  `arrayIndex:"6"` // 收盘时间
 
 	/*
 		ChatGPT:
@@ -25,10 +25,10 @@ type KLine struct {
 
 		For example, if the quote asset is US dollars (USD), the quote asset volume would represent the total value of all trades executed in USD in the past 24 hours. This metric is useful for traders and investors to assess the liquidity of a particular cryptocurrency on an exchange, as well as to identify trends and trading opportunities.
 	*/
-	QuoteAssetVolume       string `arrayIndex:"7"`  // 成交额
-	NumberOfTrades         uint64 `arrayIndex:"8"`  // 成交笔数
-	BoughtBaseAssetVolume  string `arrayIndex:"9"`  // 主动买入成交量
-	BoughtQuoteAssetVolume string `arrayIndex:"10"` // 主动买入成交额
+	QuoteAssetVolume       float64 `arrayIndex:"7"`  // 成交额
+	NumberOfTrades         uint64  `arrayIndex:"8"`  // 成交笔数
+	BoughtBaseAssetVolume  float64 `arrayIndex:"9"`  // 主动买入成交量
+	BoughtQuoteAssetVolume float64 `arrayIndex:"10"` // 主动买入成交额
 
 	// Unused         string // ignore this
 }
@@ -121,15 +121,20 @@ func UnmarshalKLinesJSON(data []byte) ([]*KLine, error) {
 		return nil, err
 	}
 
+	var kls []*KLine
 	for _, raw := range raws {
-		unmarshalKLineJSON(raw)
+		kl, err := unmarshalKLineJSON(raw)
+		if err != nil {
+			return nil, err
+		}
+		kls = append(kls, kl)
 	}
 
-	return nil, nil
+	return kls, nil
 }
 
 // TODO maybe cache mapping
-func unmarshalKLineJSON(raw []json.RawMessage) {
+func unmarshalKLineJSON(raw []json.RawMessage) (*KLine, error) {
 	// raw is a reflect.Slice
 	rv := reflect.ValueOf(raw)
 	// rv.Index(i).Kind() is a reflect.Slice
@@ -149,18 +154,25 @@ func unmarshalKLineJSON(raw []json.RawMessage) {
 			var u uint64
 			if err := json.Unmarshal(rv.Index(idx).Bytes(), &u); err != nil {
 				fmt.Println(err)
+				return nil, err
 			}
 			// fmt.Println(u)
 			fd.Set(reflect.ValueOf(u))
-		case reflect.String:
+		case reflect.Float64:
 			var s string
 			if err := json.Unmarshal(rv.Index(idx).Bytes(), &s); err != nil {
 				fmt.Println(err)
+				return nil, err
 			}
 			// fmt.Println(s)
-			fd.Set(reflect.ValueOf(s))
+			f64, err := strconv.ParseFloat(s, 64)
+			if err != nil {
+				fmt.Println(err)
+				return nil, err
+			}
+			fd.Set(reflect.ValueOf(f64))
 		default:
-			panic("should not happen")
+			return nil, fmt.Errorf("got unexpected field type %s", fd.Kind())
 		}
 
 		/*
@@ -174,5 +186,7 @@ func unmarshalKLineJSON(raw []json.RawMessage) {
 		// json.Unmarshal 拿不到第二个参数，能拿到 uintptr 值；
 		// 可以尝试用 unsafe Offset
 	}
-	fmt.Printf("%#v\nopen time: %d, close time: %d, volume: %d\n", kLine, kLine.OpenTime, kLine.CloseTime, kLine.NumberOfTrades)
+
+	// fmt.Printf("%v\n", kLine)
+	return &kLine, nil
 }
